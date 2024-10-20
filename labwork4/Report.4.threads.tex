@@ -1,0 +1,55 @@
+\documentclass{article}
+\usepackage{graphicx}
+\begin{document}
+\title{Labwork 4: Threads}
+\date{October 2024}
+
+\section{Implement the Labwork}
+\subsection{Grayscale by GPU in 2D grid}
+The input image is read from file, represented as a ndarray in shape of (imageHeight, imageWidth, 3).
+Instead of flatting the image like in 1D grid, I've used 2D array of channels to represent the image.
+Each thread calculates it's pixel index (tidx, tidy) from threadIdx, blockIdx and blockDim, then calculate the grayscale value by averaging (r, g, b) channels.
+
+\begin{verbatim}
+@cuda.jit
+def grayscale_2d(src, dst):
+  tidx = cuda.threadIdx.x + cuda.blockIdx.x * cuda.blockDim.x
+  tidy = cuda.threadIdx.y + cuda.blockIdx.y * cuda.blockDim.y
+  g = np.uint8((src[tidx, tidy, 0] + src[tidx, tidy, 1] + src[tidx, tidy, 2]) / 3)
+  dst[tidx, tidy, 0] = dst[tidx, tidy, 1] = dst[tidx, tidy, 2] = g
+
+def grayscale_gpu_2d(image_file, blockSize=(32, 32)):
+  img = plt.imread(IMAGE_FILE)
+  imageHeight, imageWidth, _ = img.shape
+  gridSize = (imageHeight // blockSize[0], imageWidth // blockSize[1])
+
+  print(f"Do grayscale image by gpu, blockSize={blockSize} ...")
+  start_t = time.time()
+
+  devSrc = cuda.to_device(img)
+  devDst = cuda.device_array((imageHeight, imageWidth, 3), np.uint8)
+  grayscale_2d[gridSize, blockSize](devSrc, devDst)
+  img = devDst.copy_to_host()
+
+  total_time = time.time() - start_t
+  print(f"It took {total_time} seconds to finish.")
+
+  return img, total_time
+\end{verbatim}
+
+\section{Experiment with different block size values}
+I've experimented with block size values of [(4, 8), (8, 8), (8, 16), (16, 16), (16, 32), (32, 32)].
+The block size is choosen to be multiple of 32, and at maximum 1024 threads per block.
+The results show that the processing times are not significantly different at the small blockSize but 2D grid is slower than 1D grid at larger blockSize. (Figure 1)
+\begin{figure}
+    \centering
+    \includegraphics[width=0.5\linewidth]{images/ouput.png}
+    \caption{Block sizes vs time}
+    \label{fig:enter-label}
+\end{figure}
+
+
+\section{Answer the questions}
+
+
+\end{document}
